@@ -4,6 +4,8 @@ import math
 from os import listdir
 from os.path import isfile, join
 
+configfilename = 'date_train_test_depth_norm_w_knn_50k_hill'
+
 random_files = ['roc_curve_info/random_train_test_depth_norm_w_knn.npy',\
 				'roc_curve_info/random_Stumpf.npy',\
 				'roc_curve_info/random_Shehhi.npy',\
@@ -14,18 +16,26 @@ random_label_names = ['Depth-Normalized Neural Net with KNN',\
 					  'nFLH',\
 					  'Soto et al.',\
 					  'Amin et al.']
-date_files = ['roc_curve_info/date_train_test_depth_norm_w_knn.npy',\
-			  'roc_curve_info/date_Stumpf.npy',\
-			  'roc_curve_info/date_Shehhi.npy',\
-			  #'roc_curve_info/date_SS488.npy',\
-			  'roc_curve_info/date_Soto.npy',\
-			  'roc_curve_info/date_Amin.npy']
-date_label_names = ['Depth-Normalized Neural Net with KNN',\
-					'Chlorophyll-a',\
+date_files = ['roc_curve_info/'+configfilename+'.npy',\
+			  'roc_curve_info/'+configfilename+'_Stumpf.npy',\
+			  'roc_curve_info/'+configfilename+'_Shehhi.npy',\
+			  'roc_curve_info/'+configfilename+'_Tomlinson.npy',\
+			  'roc_curve_info/'+configfilename+'_Soto.npy',\
+			  'roc_curve_info/'+configfilename+'_AminRBD.npy',\
+			  'roc_curve_info/'+configfilename+'_AminRBDKBBI.npy',\
+			  'roc_curve_info/'+configfilename+'_Cannizzaro2008.npy',\
+			  'roc_curve_info/'+configfilename+'_Cannizzaro2009.npy'
+			  ]
+date_label_names = ['Neural Net with Remote Sensing and KNN Features',\
+					'Stumpf et al. (2003)',\
 					'nFLH',\
-					#'SS(488)',\
+					'Tomlinson et al.',\
 					'Soto et al.',\
-					'Amin et al.']
+					'Amin et al. (RBD)',\
+					'Amin et al. (RBD+KBBI)',\
+					'Cannizzaro et al. (2008)',\
+					'Cannizzaro et al. (2009)'
+					]
 
 plotColors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 #plotNumber = 0
@@ -118,6 +128,6 @@ plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
 plt.xlim(-0.05, 1.05)
 plt.ylim(-0.05, 1.05)
-plt.title('Comparison with Literature Methods')
+plt.title('Comparison with Literature Methods at 50k cell/L')
 plt.legend(loc='lower right')
-plt.savefig('roc_curve_plots/lit_compare_date.png', bbox_inches='tight')
+plt.savefig('roc_curve_plots/lit_compare_date_50k_hill.png', bbox_inches='tight')

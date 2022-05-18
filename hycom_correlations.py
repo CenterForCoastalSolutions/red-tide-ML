@@ -97,6 +97,9 @@ for i in range(len(file_path_list_sorted)):
 			pixel_lons.append(longarr[j])
 			pixel_chlor_a.append(chlor_a[j])
 			pixel_times.append((collectionDateTime-startDate).total_seconds())
+			print((collectionDateTime-startDate).total_seconds())
+			print(collectionDateTime)
+			asdf
 		
 		num_valid_pixels = num_valid_pixels + valid_inds.shape[0]
 

@@ -14,12 +14,12 @@ random_label_names = ['Nearest Neighbor',\
 					  'Depth Normalized Neural Net',\
 					  'Depth Normalized Neural Net with Nearest Neighbor',\
 					  'Depth Normalized Neural Net with KNN']
-date_files = [	'roc_curve_info/date_train_test_depth_norm_w_knn.npy',\
-				'roc_curve_info/date_KNN.npy',\
-				'roc_curve_info/date_train_test_depth_norm.npy',]
-date_label_names = [  'Depth Normalized Neural Net with KNN',\
-					  'Weighted K-Nearest Neighbor',\
-					  'Depth Normalized Neural Net',]
+date_files = [	'roc_curve_info/date_KNN.npy',\
+                #'roc_curve_info/date_train_test_depth_norm.npy',\
+                'roc_curve_info/date_train_test_depth_norm_w_knn_10k.npy']
+date_label_names = [  'K-Nearest Neighbor Prediction',\
+                      #'Neural Net with only Remote Sensing Features',\
+                      'Neural Net with Remote Sensing and KNN Features']
 
 plotColors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 #plotNumber = 0
@@ -63,6 +63,12 @@ plotColors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', 
 #plt.legend(loc='lower right')
 #plt.savefig('roc_curve_plots/knn_compare_random.png', bbox_inches='tight')
 
+#thresholds = np.load('roc_curve_info/date_train_test_depth_norm_w_knn_thresholds.npy')
+#print(thresholds)
+#print(thresholds.shape)
+#print(np.thresholds[:,0])
+#afd
+
 plotNumber = 0
 
 plt.figure(dpi=500)
@@ -90,16 +96,24 @@ for file in date_files:
 	# margin of error = z*(population standard deviation/sqrt(n))
 	# for 95% CI, z=1.96
 	tpr_moes = (1.96*(tpr_stds/(math.sqrt(21))))/2
-	plt.plot(fpr, tpr_means, label=date_label_names[plotNumber], color=plotColors[plotNumber], zorder=0)
+
+	plt.plot(fpr, tpr_means, label=date_label_names[plotNumber], color=plotColors[plotNumber%len(plotColors)], zorder=0)
 	x_values = np.concatenate((fpr, np.flip(fpr)))
 	y_values = np.concatenate((tpr_means+tpr_moes, np.flip(tpr_means-tpr_moes)))
-	plt.fill(x_values, y_values, alpha=0.3, color=plotColors[plotNumber], zorder=0)
+	plt.fill(x_values, y_values, alpha=0.3, color=plotColors[plotNumber%len(plotColors)], zorder=0)
 	plotNumber += 1
+
+	# Calculate mean AUC
+	meanAUC = 0
+	for i in range(len(tpr_means)-1):
+		meanAUC = meanAUC + ((fpr[i+1]-fpr[i])*(tpr_means[i])) + ((fpr[i+1]-fpr[i])*((tpr_means[i+1]-tpr_means[i])/2))
+
+	print('{}: {} AUC'.format(date_label_names[plotNumber-1], meanAUC))
 
 plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
 plt.xlim(-0.05, 1.05)
 plt.ylim(-0.05, 1.05)
 plt.title('KNN Comparison')
-plt.legend(loc='lower right')
+plt.legend(loc='lower right', prop={'size': 7})
 plt.savefig('roc_curve_plots/knn_compare_date.png', bbox_inches='tight')

@@ -30,7 +30,7 @@ classes = np.squeeze(classes)
 
 forest = RandomForestClassifier(n_estimators=340)
 
-selector = RFE(forest, n_features_to_select=7, step=1)
+selector = RFE(forest, n_features_to_select=1, step=1)
 
 selector.fit(input_features, classes)
 

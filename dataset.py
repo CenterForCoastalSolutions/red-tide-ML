@@ -13,3 +13,15 @@ class RedTideDataset(Dataset):
         
     def __getitem__(self, idx):
         return self.datamatrix[idx, :], self.labels[idx, :]
+
+
+# Create dataloader for map responses
+class UnlabeledDataset(Dataset):
+    def __init__(self, datamatrix):
+        self.datamatrix = datamatrix
+        
+    def __len__(self):
+        return self.datamatrix.shape[0]
+        
+    def __getitem__(self, idx):
+        return self.datamatrix[idx, :]

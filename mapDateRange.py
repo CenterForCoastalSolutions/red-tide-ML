@@ -16,13 +16,13 @@ from findMatrixCoordsBedrock import *
 from model import *
 from utils import *
 
-startDate = pd.Timestamp(year=2018, month=8, day=1, hour=0)
-endDate = pd.Timestamp(year=2018, month=9, day=1, hour=0)
+startDate = pd.Timestamp(year=2002, month=7, day=17, hour=0)
+endDate = pd.Timestamp(year=2002, month=12, day=31, hour=0)
 
 dates = []
 
 testDate = startDate
-while(testDate < endDate):
+while(testDate <= endDate):
 	dates.append(testDate)
 	testDate = testDate + pd.Timedelta(days=1)
 
@@ -42,8 +42,10 @@ data_list = os.listdir(data_folder)
 reduced_file_list = []
 for i in range(len(data_list)):
 	year = int(data_list[i][1:5])
-	if(abs(startDate.year - year) < 1.5 or abs(endDate.year - year) < 1.5):
+	if(year >= (startDate.year - 1) and year <= (endDate.year + 1)):
 		reduced_file_list.append(data_list[i])
+
+days_of_imagery_to_average = 14
 
 for i in range(len(reduced_file_list)):
 	print('Processing files: {}/{}'.format(i, len(reduced_file_list)))
@@ -57,7 +59,7 @@ for i in range(len(reduced_file_list)):
 
 	days_ahead = [(date_temp - collectionTimeStamp).days for date_temp in dates]
 
-	if(any(day_ahead >= 0 and day_ahead <= 14 for day_ahead in days_ahead)):
+	if(any(day_ahead >= 0 and day_ahead <= days_of_imagery_to_average for day_ahead in days_ahead)):
 		dataset = xr.open_dataset(file_path, 'geophysical_data')
 		nav_dataset = xr.open_dataset(file_path, 'navigation_data')
 		latitude = nav_dataset['latitude']
@@ -73,7 +75,7 @@ for i in range(len(reduced_file_list)):
 		Rrs_488 = np.array(dataset['Rrs_488']).flatten()
 		nflh = np.array(dataset['nflh']).flatten()
 
-		day_inds = [day_ahead >= 0 and day_ahead <= 14 for day_ahead in days_ahead]
+		day_inds = [day_ahead >= 0 and day_ahead <= days_of_imagery_to_average for day_ahead in days_ahead]
 		day_inds = np.where(np.array(day_inds) == True)[0]
 
 		avail_inds = ~np.isnan(par)
@@ -124,6 +126,8 @@ for i in range(len(reduced_file_list)):
 		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 12, np.repeat(day_inds, x_ind.shape[0])] += np.tile(nflh[avail_inds], day_inds.shape[0])
 
 		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 13, np.repeat(day_inds, x_ind.shape[0])] += 1
+
+np.save('/run/media/rfick/UF10/florida_stats.npy', florida_stats)
 
 features = np.zeros((florida_stats.shape[0], florida_stats.shape[1], 8, len(dates)))
 for i in range(florida_stats.shape[0]):
@@ -201,7 +205,7 @@ for i in range(len(orig_indices_bedrock)):
 	for j in range(len(dates)):
 		features[i, 7, j] = bedrock_z[orig_indices_bedrock[i][0]][orig_indices_bedrock[i][1]]
 
-land_mask = features[:,7,0] > 0
+land_mask = features[:,7,0] >= 0
 land_mask = np.reshape(land_mask, (original_size[0], original_size[1]))
 
 day_counter = 0
