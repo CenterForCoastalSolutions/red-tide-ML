@@ -26,6 +26,7 @@ from detectors.Cannizzaro2008EtAlDetector import *
 from detectors.Cannizzaro2009EtAlDetector import *
 from detectors.ShehhiEtAlDetector import *
 from detectors.Tomlinson2009EtAlDetector import *
+from detectors.LouEtAlDetector import *
 from torch.utils.data import DataLoader, Dataset
 from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve
 import json
@@ -123,6 +124,7 @@ features_shehhi = paired_df[['nflh']].to_numpy().copy()
 features_Tomlinson = paired_df[['Rrs_443', 'Rrs_488', 'Rrs_531']].to_numpy().copy()
 features_cannizzaro2008 = paired_df[['chl_ocx', 'Rrs_443', 'Rrs_555']].to_numpy().copy()
 features_cannizzaro2009 = paired_df[['chl_ocx', 'Rrs_443', 'Rrs_555']].to_numpy().copy()
+features_lou = paired_df[['Rrs_443', 'Rrs_488', 'Rrs_555']].to_numpy().copy()
 
 features = paired_df[features_to_use[1:-6]]
 features_used = features_to_use[3:-7]
@@ -156,6 +158,7 @@ if(use_hill_test == 1):
 	features_Tomlinson = features_Tomlinson[valid_inds, :]
 	features_cannizzaro2008 = features_cannizzaro2008[valid_inds, :]
 	features_cannizzaro2009 = features_cannizzaro2009[valid_inds, :]
+	features_lou = features_lou[valid_inds, :]
 
 
 
@@ -209,6 +212,8 @@ fprsCannizzaro2009 = []
 tprsCannizzaro2009 = []
 fprsAminRBDKBBI = []
 tprsAminRBDKBBI = []
+refFprLou = []
+tprsLou = []
 
 hycom_data = '/run/media/rfick/UF10/HYCOM/expt_50.1_netCDF/'
 
@@ -237,6 +242,7 @@ for model_number in range(len(randomseeds)):
 	reducedFeaturesTomlinson = features_Tomlinson[reducedInds, :]
 	reducedFeaturesCannizzaro2008 = features_cannizzaro2008[reducedInds, :]
 	reducedFeaturesCannizzaro2009 = features_cannizzaro2009[reducedInds, :]
+	reducedFeaturesLou = features_lou[reducedInds, :]
 
 	reducedDates = dates[reducedInds]
 	reducedLatitudes = latitudes[reducedInds]
@@ -258,6 +264,7 @@ for model_number in range(len(randomseeds)):
 	testSetTomlinson = reducedFeaturesTomlinson[testInds, :].astype(float)
 	testSetCannizzaro2008 = reducedFeaturesCannizzaro2008[testInds, :].astype(float)
 	testSetCannizzaro2009 = reducedFeaturesCannizzaro2009[testInds, :].astype(float)
+	testSetLou = reducedFeaturesLou[testInds, :].astype(float)
 
 	outputSoto = SotoEtAlDetector(testSetSoto)
 	outputAminRBD = AminEtAlRBDDetector(testSetAminRBD)
@@ -267,6 +274,7 @@ for model_number in range(len(randomseeds)):
 	outputTomlinson = Tomlinson2009EtAlDetector(testSetTomlinson)
 	outputCannizzaro2008 = Cannizzaro2008EtAlDetector(testSetCannizzaro2008)
 	outputCannizzaro2009 = Cannizzaro2009EtAlDetector(testSetCannizzaro2009)
+	outputLou = LouEtAlDetector(testSetLou)
 
 	testClasses = usedClasses[testInds]
 
@@ -535,6 +543,16 @@ for model_number in range(len(randomseeds)):
 		refTprTomlinson = np.expand_dims(refTprTomlinson, axis=1)
 		tprsTomlinson = np.concatenate((tprsTomlinson, refTprTomlinson), axis=1)
 
+	fpr, tpr, thresholds = roc_curve(testClasses, outputLou)
+	if(model_number == 0):
+		refFprLou = fpr
+		tprsLou = tpr
+		tprsLou = np.expand_dims(tprsLou, axis=1)
+	else:
+		refTprLou = convertROC(fpr, tpr, refFprLou)
+		refTprLou = np.expand_dims(refTprLou, axis=1)
+		tprsLou = np.concatenate((tprsLou, refTprLou), axis=1)
+
 	feature_permu = np.random.permutation(testSet.shape[0])
 	for i in range(testSet.shape[1]):
 		# permute feature i
@@ -602,6 +620,11 @@ refFprTomlinson = np.expand_dims(refFprTomlinson, axis=1)
 fpr_and_tprsTomlinson = np.concatenate((refFprTomlinson, tprsTomlinson), axis=1)
 
 np.save(filename_roc_curve_info+'/'+configfilename+'_Tomlinson.npy', fpr_and_tprsTomlinson)
+
+refFprLou = np.expand_dims(refFprLou, axis=1)
+fpr_and_tprsLou = np.concatenate((refFprLou, tprsLou), axis=1)
+
+np.save(filename_roc_curve_info+'/'+configfilename+'_Lou.npy', fpr_and_tprsLou)
 
 fpr_and_tprsSoto = np.zeros(2)
 fpr_and_tprsSoto[0] = np.mean(fprsSoto)

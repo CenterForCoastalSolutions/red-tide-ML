@@ -24,7 +24,8 @@ date_files = ['roc_curve_info/'+configfilename+'.npy',\
 			  'roc_curve_info/'+configfilename+'_AminRBD.npy',\
 			  'roc_curve_info/'+configfilename+'_AminRBDKBBI.npy',\
 			  'roc_curve_info/'+configfilename+'_Cannizzaro2008.npy',\
-			  'roc_curve_info/'+configfilename+'_Cannizzaro2009.npy'
+			  'roc_curve_info/'+configfilename+'_Cannizzaro2009.npy',\
+			  'roc_curve_info/'+configfilename+'_Lou.npy'
 			  ]
 date_label_names = ['Neural Net with Remote Sensing and KNN Features',\
 					'Stumpf et al. (2003)',\
@@ -34,7 +35,8 @@ date_label_names = ['Neural Net with Remote Sensing and KNN Features',\
 					'Amin et al. (RBD)',\
 					'Amin et al. (RBD+KBBI)',\
 					'Cannizzaro et al. (2008)',\
-					'Cannizzaro et al. (2009)'
+					'Cannizzaro et al. (2009)',\
+					'Lou and Hu (2014)'
 					]
 
 plotColors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
