@@ -15,9 +15,25 @@ from convertFeaturesByDepth import *
 from findMatrixCoordsBedrock import *
 from model import *
 from utils import *
+import scipy.spatial.qhull as qhull
 
-startDate = pd.Timestamp(year=2002, month=7, day=17, hour=0)
-endDate = pd.Timestamp(year=2002, month=12, day=31, hour=0)
+def interp_weights(xyz, uvw):
+	d = uvw.shape[1]
+	tri = qhull.Delaunay(xyz)
+	simplex = tri.find_simplex(uvw)
+	vertices = np.take(tri.simplices, simplex, axis=0)
+	temp = np.take(tri.transform, simplex, axis=0)
+	delta = uvw - temp[:, d]
+	bary = np.einsum('njk,nk->nj', temp[:, :d, :], delta)
+	return vertices, np.hstack((bary, 1 - bary.sum(axis=1, keepdims=True)))
+
+def interpolate(values, vtx, wts, fill_value=np.nan):
+	ret = np.einsum('nj,nj->n', np.take(values, vtx), wts)
+	ret[np.any(wts < 0, axis=1)] = fill_value
+	return ret
+
+startDate = pd.Timestamp(year=2018, month=7, day=17, hour=0)
+endDate = pd.Timestamp(year=2018, month=10, day=31, hour=0)
 
 dates = []
 
@@ -31,6 +47,11 @@ np.save('map_images/dates.npy', dates)
 step_size = 0.015
 florida_x = np.arange(-92, -75, step_size)
 florida_y = np.arange(20, 35, step_size)
+xx, yy = np.meshgrid(florida_x, florida_y)
+xi = np.zeros((florida_x.shape[0]*florida_y.shape[0], 2))
+xi[:, 0] = xx.flatten()
+xi[:, 1] = yy.flatten()
+
 # 'par', count, 'Kd_490', count, 'chlor_a', count, 'Rrs_443', count, 'Rrs_469', count, 'Rrs_488', count, 'nflh', count
 florida_stats = np.zeros((florida_x.shape[0], florida_y.shape[0], 14, len(dates)))
 florida_lats = np.tile(florida_y, len(florida_x))
@@ -41,8 +62,16 @@ data_list = os.listdir(data_folder)
 
 reduced_file_list = []
 for i in range(len(data_list)):
-	year = int(data_list[i][1:5])
-	if(year >= (startDate.year - 1) and year <= (endDate.year + 1)):
+	if(i%100 == 0):
+		print('Getting file dates: {}/{}'.format(i, len(data_list)))
+	file_id = data_list[i]
+	file_path = data_folder + '/' + file_id
+
+	fh = netCDF4.Dataset(file_path, mode='r')
+	collectionDate = fh.time_coverage_start[0:10]
+	collectionTimeStamp = pd.Timestamp(int(collectionDate[0:4]), int(collectionDate[5:7]), int(collectionDate[8:10]), 0)
+
+	if(collectionTimeStamp >= (startDate - pd.Timedelta(days=1)) and collectionTimeStamp <= (endDate + pd.Timedelta(days=1))):
 		reduced_file_list.append(data_list[i])
 
 days_of_imagery_to_average = 14
@@ -75,59 +104,55 @@ for i in range(len(reduced_file_list)):
 		Rrs_488 = np.array(dataset['Rrs_488']).flatten()
 		nflh = np.array(dataset['nflh']).flatten()
 
+		datapoints = np.zeros((len(longarr), 2))
+		datapoints[:, 0] = longarr
+		datapoints[:, 1] = latarr
+
 		day_inds = [day_ahead >= 0 and day_ahead <= days_of_imagery_to_average for day_ahead in days_ahead]
 		day_inds = np.where(np.array(day_inds) == True)[0]
 
-		avail_inds = ~np.isnan(par)
-		x_ind = find_nearest_batch(florida_x, longarr[avail_inds])
-		y_ind = find_nearest_batch(florida_y, latarr[avail_inds])
-		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 0, np.repeat(day_inds, x_ind.shape[0])] += np.tile(par[avail_inds], day_inds.shape[0])
+		vtx, wts = interp_weights(datapoints, xi)
+		interpolated_data = interpolate(par, vtx, wts)
+		interpolated_data = np.reshape(interpolated_data, (florida_x.shape[0], florida_y.shape[0]), order='F')
+		for j in range(len(day_inds)):
+			florida_stats[:, :, 0, day_inds[j]] += np.nan_to_num(interpolated_data)
+			florida_stats[:, :, 1, day_inds[j]] += ~np.isnan(interpolated_data)
 
-		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 1, np.repeat(day_inds, x_ind.shape[0])] += 1
+		interpolated_data = interpolate(Kd_490, vtx, wts)
+		interpolated_data = np.reshape(interpolated_data, (florida_x.shape[0], florida_y.shape[0]), order='F')
+		for j in range(len(day_inds)):
+			florida_stats[:, :, 2, day_inds[j]] += np.nan_to_num(interpolated_data)
+			florida_stats[:, :, 3, day_inds[j]] += ~np.isnan(interpolated_data)
 
-		avail_inds = ~np.isnan(Kd_490)
-		x_ind = find_nearest_batch(florida_x, longarr[avail_inds])
-		y_ind = find_nearest_batch(florida_y, latarr[avail_inds])
-		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 2, np.repeat(day_inds, x_ind.shape[0])] += np.tile(Kd_490[avail_inds], day_inds.shape[0])
+		interpolated_data = interpolate(chlor_a, vtx, wts)
+		interpolated_data = np.reshape(interpolated_data, (florida_x.shape[0], florida_y.shape[0]), order='F')
+		for j in range(len(day_inds)):
+			florida_stats[:, :, 4, day_inds[j]] += np.nan_to_num(interpolated_data)
+			florida_stats[:, :, 5, day_inds[j]] += ~np.isnan(interpolated_data)
 
-		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 3, np.repeat(day_inds, x_ind.shape[0])] += 1
+		interpolated_data = interpolate(Rrs_443, vtx, wts)
+		interpolated_data = np.reshape(interpolated_data, (florida_x.shape[0], florida_y.shape[0]), order='F')
+		for j in range(len(day_inds)):
+			florida_stats[:, :, 6, day_inds[j]] += np.nan_to_num(interpolated_data)
+			florida_stats[:, :, 7, day_inds[j]] += ~np.isnan(interpolated_data)
 
-		avail_inds = ~np.isnan(chlor_a)
-		x_ind = find_nearest_batch(florida_x, longarr[avail_inds])
-		y_ind = find_nearest_batch(florida_y, latarr[avail_inds])
-		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 4, np.repeat(day_inds, x_ind.shape[0])] += np.tile(chlor_a[avail_inds], day_inds.shape[0])
+		interpolated_data = interpolate(Rrs_469, vtx, wts)
+		interpolated_data = np.reshape(interpolated_data, (florida_x.shape[0], florida_y.shape[0]), order='F')
+		for j in range(len(day_inds)):
+			florida_stats[:, :, 8, day_inds[j]] += np.nan_to_num(interpolated_data)
+			florida_stats[:, :, 9, day_inds[j]] += ~np.isnan(interpolated_data)
 
-		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 5, np.repeat(day_inds, x_ind.shape[0])] += 1
+		interpolated_data = interpolate(Rrs_488, vtx, wts)
+		interpolated_data = np.reshape(interpolated_data, (florida_x.shape[0], florida_y.shape[0]), order='F')
+		for j in range(len(day_inds)):
+			florida_stats[:, :, 10, day_inds[j]] += np.nan_to_num(interpolated_data)
+			florida_stats[:, :, 11, day_inds[j]] += ~np.isnan(interpolated_data)
 
-		avail_inds = ~np.isnan(Rrs_443)
-		x_ind = find_nearest_batch(florida_x, longarr[avail_inds])
-		y_ind = find_nearest_batch(florida_y, latarr[avail_inds])
-		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 6, np.repeat(day_inds, x_ind.shape[0])] += np.tile(Rrs_443[avail_inds], day_inds.shape[0])
-
-		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 7, np.repeat(day_inds, x_ind.shape[0])] += 1
-
-		avail_inds = ~np.isnan(Rrs_469)
-		x_ind = find_nearest_batch(florida_x, longarr[avail_inds])
-		y_ind = find_nearest_batch(florida_y, latarr[avail_inds])
-		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 8, np.repeat(day_inds, x_ind.shape[0])] += np.tile(Rrs_469[avail_inds], day_inds.shape[0])
-
-		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 9, np.repeat(day_inds, x_ind.shape[0])] += 1
-
-		avail_inds = ~np.isnan(Rrs_488)
-		x_ind = find_nearest_batch(florida_x, longarr[avail_inds])
-		y_ind = find_nearest_batch(florida_y, latarr[avail_inds])
-		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 10, np.repeat(day_inds, x_ind.shape[0])] += np.tile(Rrs_488[avail_inds], day_inds.shape[0])
-
-		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 11, np.repeat(day_inds, x_ind.shape[0])] += 1
-
-		avail_inds = ~np.isnan(nflh)
-		x_ind = find_nearest_batch(florida_x, longarr[avail_inds])
-		y_ind = find_nearest_batch(florida_y, latarr[avail_inds])
-		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 12, np.repeat(day_inds, x_ind.shape[0])] += np.tile(nflh[avail_inds], day_inds.shape[0])
-
-		florida_stats[np.tile(x_ind, day_inds.shape[0]), np.tile(y_ind, day_inds.shape[0]), 13, np.repeat(day_inds, x_ind.shape[0])] += 1
-
-np.save('/run/media/rfick/UF10/florida_stats.npy', florida_stats)
+		interpolated_data = interpolate(nflh, vtx, wts)
+		interpolated_data = np.reshape(interpolated_data, (florida_x.shape[0], florida_y.shape[0]), order='F')
+		for j in range(len(day_inds)):
+			florida_stats[:, :, 12, day_inds[j]] += np.nan_to_num(interpolated_data)
+			florida_stats[:, :, 13, day_inds[j]] += ~np.isnan(interpolated_data)
 
 features = np.zeros((florida_stats.shape[0], florida_stats.shape[1], 8, len(dates)))
 for i in range(florida_stats.shape[0]):
@@ -168,16 +193,6 @@ for i in range(florida_stats.shape[0]):
 			else:
 				features[i, j, 6, k] = florida_stats[i, j, 12, k]/florida_stats[i, j, 13, k]
 
-
-
-###########
-#Try some average filtering to smooth out noise
-#for feature_i in range(features.shape[2]):
-#	for date_j in range(features.shape[3]):
-#		features[:, :, feature_i, date_j] = ndimage.uniform_filter(np.squeeze(features[:, :, feature_i, date_j]), size=3)
-###########
-
-
 bedrock_x = np.load('florida_x.npy')
 bedrock_y = np.load('florida_y.npy')
 bedrock_z = np.load('florida_z.npy')
@@ -188,9 +203,6 @@ florida_lats = np.reshape(florida_lats, (features.shape[0], features.shape[1]), 
 florida_lons = np.reshape(florida_lons, (features.shape[0], features.shape[1]), order='C')
 florida_lats = florida_lats[520:780, 300:580]
 florida_lons = florida_lons[520:780, 300:580]
-
-np.save('map_images/latitudes.npy', florida_lats)
-np.save('map_images/longitudes.npy', florida_lons)
 
 florida_lats = np.reshape(florida_lats, (florida_lats.shape[0]*florida_lats.shape[1]))
 florida_lons = np.reshape(florida_lons, (florida_lons.shape[0]*florida_lons.shape[1]))
