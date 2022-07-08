@@ -1,8 +1,10 @@
 import pandas as pd
+import cudf
 import sys
 from scipy import stats
 import numpy as np
 import matplotlib.pyplot as plt
+import cupy as cp
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -47,7 +49,9 @@ use_hill_test = config.getint('main', 'use_hill_test')
 
 loss = nn.BCELoss()
 
-paired_df = pd.read_pickle('paired_dataset.pkl')
+cpu_paired_df = pd.read_pickle('paired_dataset.pkl')
+paired_df = cudf.from_pandas(cpu_paired_df)
+print(paired_df)
 
 #features_to_use=['Sample Date', 'Latitude', 'aot_869', 'angstrom', 'Rrs_412', 'Rrs_443', 'Rrs_469', 'Rrs_488',\
 #	'Rrs_531', 'Rrs_547', 'Rrs_555', 'Rrs_645',\
@@ -67,7 +71,7 @@ latitudes = paired_df['Latitude'].to_numpy().copy()
 longitudes = paired_df['Longitude'].to_numpy().copy()
 
 features = paired_df[features_to_use[1:-1]]
-features = np.array(features.values)
+features = cp.array(features.values)
 
 
 if(normalization == 0):
@@ -228,20 +232,6 @@ for model_number in range(len(randomseeds)):
 		##### Don't balance data by classes
 		reducedInds = np.array(range(len(classes)))
 
-
-	# Hill uses a split of 1755 positive examples and 1114 negative examples
-	# Try to match that ratio to make the metrics match
-	if(use_hill_test == 1):
-		#Balance classes by number of samples
-		values, counts = np.unique(df_conc_classes, return_counts=True)
-		reducedInds = np.array([])
-		class_inds = np.where(classes == 1)[0]
-		reducedInds = np.append(reducedInds, class_inds)
-		numPositives = len(class_inds)
-		numNegativesToSelect = int(numPositives/(1755/1114))
-		class_inds = np.where(classes == 0)[0]
-		reducedInds = np.append(reducedInds, class_inds[np.random.choice(class_inds.shape[0], numNegativesToSelect)])
-		reducedInds = reducedInds.astype(int)
 
 
 	reducedInds = reducedInds.astype(int)

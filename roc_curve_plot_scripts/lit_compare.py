@@ -1,10 +1,46 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+import pandas as pd
+from configparser import ConfigParser
 from os import listdir
 from os.path import isfile, join
 
+def kappa_score(fprs, tprs, numPositives, numNegatives):
+	# K = (2*(TP*TN - FN*FP))/((TP+FP)*(FP+TN)+(TP+FN)*(FN+TN))
+	for i in range(len(fprs)):
+		TP = tprs[i] * numPositives
+		FN = (1-tprs[i]) * numPositives
+		FP = fprs[i] * numNegatives
+		TN = (1-fprs[i]) * numNegatives
+		precision = TP/(TP + FP)
+		recall = TP/(TP + FN)
+		kappa = (2*(TP*TN - FN*FP))/((TP+FP)*(FP+TN)+(TP+FN)*(FN+TN))
+		accuracy = (TP+TN)/(TP+FN+TN+FP)
+		F1 = (2*precision*recall)/(precision+recall)
+		print('{} {} {}'.format(accuracy, F1, kappa))
+	asdf
+
 configfilename = 'date_train_test_depth_norm_w_knn_50k_hill'
+
+config = ConfigParser()
+config.read('configfiles/'+configfilename+'.ini')
+detection_limit = config.getint('main', 'detection_limit')
+
+file_path = 'PinellasMonroeCoKareniabrevis 2010-2020.06.12.xlsx'
+
+df = pd.read_excel(file_path, engine='openpyxl')
+df_concs = df['Karenia brevis abundance (cells/L)'].to_numpy()
+
+df_conc_classes = np.zeros_like(df_concs)
+for i in range(len(df_conc_classes)):
+	if(df_concs[i] < detection_limit):
+		df_conc_classes[i] = 0
+	else:
+		df_conc_classes[i] = 1
+
+numPositives = np.sum(df_conc_classes)
+numNegatives = len(df_conc_classes) - np.sum(df_conc_classes)
 
 random_files = ['roc_curve_info/random_train_test_depth_norm_w_knn.npy',\
 				'roc_curve_info/random_Stumpf.npy',\
@@ -120,6 +156,8 @@ for file in date_files:
 		y_values = np.concatenate((tpr_means+tpr_moes, np.flip(tpr_means-tpr_moes)))
 		plt.fill(x_values, y_values, alpha=0.3, color=plotColors[plotNumber], zorder=0)
 		plotNumber += 1
+
+		#kappa_score(fpr, tpr_means, numPositives, numNegatives)
 	else:
 		fpr = fpr_and_tprs[0]
 		tpr = fpr_and_tprs[1]

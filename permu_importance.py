@@ -33,6 +33,40 @@ import json
 from configparser import ConfigParser
 import matplotlib.pyplot as plt
 
+def addNewModelResultsThreshold(output, testClasses, fprs, tprs):
+	false_positives = 0
+	true_positives = 0
+	total_negatives = 0
+	total_positives = 0
+
+	for i in range(len(testClasses)):
+		if(testClasses[i] == 0):
+			if(output[i] != 0):
+				false_positives += 1
+			total_negatives += 1
+		else:
+			if(output[i] == 1):
+				true_positives += 1
+			total_positives += 1
+
+	fpr = false_positives/total_negatives
+	tpr = true_positives/total_positives
+	fprs.append(fpr)
+	tprs.append(tpr)
+	return fprs, tprs
+
+def addNewModelResultsROC(output, testClasses, refFpr, tprs):
+	fpr, tpr, thresholds = roc_curve(testClasses, output)
+	if(model_number == 0):
+		refFpr = fpr
+		tprs = tpr
+		tprs = np.expand_dims(tprs, axis=1)
+	else:
+		refTpr = convertROC(fpr, tpr, refFpr)
+		refTpr = np.expand_dims(refTpr, axis=1)
+		tprs = np.concatenate((tprs, refTpr), axis=1)
+	return refFpr, tprs
+
 configfilename = 'date_train_test_depth_norm_w_knn_50k_hill'
 
 config = ConfigParser()
@@ -376,182 +410,20 @@ for model_number in range(len(randomseeds)):
 	accsLinLee[model_number] = accuracy_score(testClasses, outputSoto)
 	accsNN[model_number] = accuracy_score(testClasses, nn_preds)
 
-	false_positives = 0
-	true_positives = 0
-	total_negatives = 0
-	total_positives = 0
+	fprsSoto, tprsSoto = addNewModelResultsThreshold(outputSoto, testClasses, fprsSoto, tprsSoto)
+	fprsCannizzaro2008, tprsCannizzaro2008 = addNewModelResultsThreshold(outputCannizzaro2008, testClasses, fprsCannizzaro2008, tprsCannizzaro2008)
+	fprsCannizzaro2009, tprsCannizzaro2009 = addNewModelResultsThreshold(outputCannizzaro2009, testClasses, fprsCannizzaro2009, tprsCannizzaro2009)
+	fprsAminRBDKBBI, tprsAminRBDKBBI = addNewModelResultsThreshold(outputAminRBDKBBI, testClasses, fprsAminRBDKBBI, tprsAminRBDKBBI)
 
-	for i in range(len(testClasses)):
-		if(testClasses[i] == 0):
-			if(outputSoto[i] != 0):
-				false_positives += 1
-			total_negatives += 1
-		else:
-			if(outputSoto[i] == 1):
-				true_positives += 1
-			total_positives += 1
-
-	fpr = false_positives/total_negatives
-	tpr = true_positives/total_positives
-	fprsSoto.append(fpr)
-	tprsSoto.append(tpr)
-
-	false_positives = 0
-	true_positives = 0
-	total_negatives = 0
-	total_positives = 0
-
-	for i in range(len(testClasses)):
-		if(testClasses[i] == 0):
-			if(outputCannizzaro2008[i] != 0):
-				false_positives += 1
-			total_negatives += 1
-		else:
-			if(outputCannizzaro2008[i] == 1):
-				true_positives += 1
-			total_positives += 1
-
-	fpr = false_positives/total_negatives
-	tpr = true_positives/total_positives
-	fprsCannizzaro2008.append(fpr)
-	tprsCannizzaro2008.append(tpr)
-
-	false_positives = 0
-	true_positives = 0
-	total_negatives = 0
-	total_positives = 0
-
-	for i in range(len(testClasses)):
-		if(testClasses[i] == 0):
-			if(outputCannizzaro2009[i] != 0):
-				false_positives += 1
-			total_negatives += 1
-		else:
-			if(outputCannizzaro2009[i] == 1):
-				true_positives += 1
-			total_positives += 1
-
-	fpr = false_positives/total_negatives
-	tpr = true_positives/total_positives
-	fprsCannizzaro2009.append(fpr)
-	tprsCannizzaro2009.append(tpr)
-
-	false_positives = 0
-	true_positives = 0
-	total_negatives = 0
-	total_positives = 0
-
-	for i in range(len(testClasses)):
-		if(testClasses[i] == 0):
-			if(outputAminRBDKBBI[i] != 0):
-				false_positives += 1
-			total_negatives += 1
-		else:
-			if(outputAminRBDKBBI[i] == 1):
-				true_positives += 1
-			total_positives += 1
-
-	fpr = false_positives/total_negatives
-	tpr = true_positives/total_positives
-	fprsAminRBDKBBI.append(fpr)
-	tprsAminRBDKBBI.append(tpr)
-
-	fpr, tpr, thresholds = roc_curve(testClasses, output[:, 1])
-	if(model_number == 0):
-		refFpr = fpr
-		tprs = tpr
-		tprs = np.expand_dims(tprs, axis=1)
-
-		modelThresholds = thresholds
-		modelThresholds = np.expand_dims(modelThresholds, axis=1)
-	else:
-		refTpr = convertROC(fpr, tpr, refFpr)
-		refTpr = np.expand_dims(refTpr, axis=1)
-		tprs = np.concatenate((tprs, refTpr), axis=1)
-
-		refThresholds = convertROC(fpr, thresholds, refFpr)
-		refThresholds = np.expand_dims(refThresholds, axis=1)
-		modelThresholds = np.concatenate((modelThresholds, refThresholds), axis=1)
-
-	fpr, tpr, thresholds = roc_curve(testClasses, nn_concs)
-	if(model_number == 0):
-		refFprNN = fpr
-		tprsNN = tpr
-		tprsNN = np.expand_dims(tprsNN, axis=1)
-	else:
-		refTprNN = convertROC(fpr, tpr, refFprNN)
-		refTprNN = np.expand_dims(refTprNN, axis=1)
-		tprsNN = np.concatenate((tprsNN, refTprNN), axis=1)
-
-	fpr, tpr, thresholds = roc_curve(testClasses, knn_concs)
-	if(model_number == 0):
-		refFprKNN = fpr
-		tprsKNN = tpr
-		tprsKNN = np.expand_dims(tprsKNN, axis=1)
-	else:
-		refTprKNN = convertROC(fpr, tpr, refFprKNN)
-		refTprKNN = np.expand_dims(refTprKNN, axis=1)
-		tprsKNN = np.concatenate((tprsKNN, refTprKNN), axis=1)
-
-	#fpr, tpr, thresholds = roc_curve(testClasses, hycom_concs)
-	#if(model_number == 0):
-	#	refFprHYCOM = fpr
-	#	tprsHYCOM = tpr
-	#	tprsHYCOM = np.expand_dims(tprsHYCOM, axis=1)
-	#else:
-	#	refTprHYCOM = convertROC(fpr, tpr, refFprHYCOM)
-	#	refTprHYCOM = np.expand_dims(refTprHYCOM, axis=1)
-	#	tprsHYCOM = np.concatenate((tprsHYCOM, refTprHYCOM), axis=1)
-
-	fpr, tpr, thresholds = roc_curve(testClasses, outputStumpf)
-	if(model_number == 0):
-		refFprStumpf = fpr
-		tprsStumpf = tpr
-		tprsStumpf = np.expand_dims(tprsStumpf, axis=1)
-	else:
-		refTprStumpf = convertROC(fpr, tpr, refFprStumpf)
-		refTprStumpf = np.expand_dims(refTprStumpf, axis=1)
-		tprsStumpf = np.concatenate((tprsStumpf, refTprStumpf), axis=1)
-
-	fpr, tpr, thresholds = roc_curve(testClasses, outputShehhi)
-	if(model_number == 0):
-		refFprShehhi = fpr
-		tprsShehhi = tpr
-		tprsShehhi = np.expand_dims(tprsShehhi, axis=1)
-	else:
-		refTprShehhi = convertROC(fpr, tpr, refFprShehhi)
-		refTprShehhi = np.expand_dims(refTprShehhi, axis=1)
-		tprsShehhi = np.concatenate((tprsShehhi, refTprShehhi), axis=1)
-
-	fpr, tpr, thresholds = roc_curve(testClasses, outputAminRBD)
-	if(model_number == 0):
-		refFprAminRBD = fpr
-		tprsAminRBD = tpr
-		tprsAminRBD = np.expand_dims(tprsAminRBD, axis=1)
-	else:
-		refTprAminRBD = convertROC(fpr, tpr, refFprAminRBD)
-		refTprAminRBD = np.expand_dims(refTprAminRBD, axis=1)
-		tprsAminRBD = np.concatenate((tprsAminRBD, refTprAminRBD), axis=1)
-
-	fpr, tpr, thresholds = roc_curve(testClasses, outputTomlinson)
-	if(model_number == 0):
-		refFprTomlinson = fpr
-		tprsTomlinson = tpr
-		tprsTomlinson = np.expand_dims(tprsTomlinson, axis=1)
-	else:
-		refTprTomlinson = convertROC(fpr, tpr, refFprTomlinson)
-		refTprTomlinson = np.expand_dims(refTprTomlinson, axis=1)
-		tprsTomlinson = np.concatenate((tprsTomlinson, refTprTomlinson), axis=1)
-
-	fpr, tpr, thresholds = roc_curve(testClasses, outputLou)
-	if(model_number == 0):
-		refFprLou = fpr
-		tprsLou = tpr
-		tprsLou = np.expand_dims(tprsLou, axis=1)
-	else:
-		refTprLou = convertROC(fpr, tpr, refFprLou)
-		refTprLou = np.expand_dims(refTprLou, axis=1)
-		tprsLou = np.concatenate((tprsLou, refTprLou), axis=1)
+	refFpr, tprs = addNewModelResultsROC(output[:, 1], testClasses, refFpr, tprs)
+	refFprNN, tprsNN = addNewModelResultsROC(nn_concs, testClasses, refFprNN, tprsNN)
+	refFprKNN, tprsKNN = addNewModelResultsROC(knn_concs, testClasses, refFprKNN, tprsKNN)
+	#refFprHYCOM, tprsHYCOM = addNewModelResultsROC(hycom_concs, testClasses, refFprHYCOM, tprsHYCOM)
+	refFprStumpf, tprsStumpf = addNewModelResultsROC(outputStumpf, testClasses, refFprStumpf, tprsStumpf)
+	refFprShehhi, tprsShehhi = addNewModelResultsROC(outputShehhi, testClasses, refFprShehhi, tprsShehhi)
+	refFprAminRBD, tprsAminRBD = addNewModelResultsROC(outputAminRBD, testClasses, refFprAminRBD, tprsAminRBD)
+	refFprTomlinson, tprsTomlinson = addNewModelResultsROC(outputTomlinson, testClasses, refFprTomlinson, tprsTomlinson)
+	refFprLou, tprsLou = addNewModelResultsROC(outputLou, testClasses, refFprLou, tprsLou)
 
 	feature_permu = np.random.permutation(testSet.shape[0])
 	for i in range(testSet.shape[1]):
@@ -584,7 +456,6 @@ refFpr = np.expand_dims(refFpr, axis=1)
 fpr_and_tprs = np.concatenate((refFpr, tprs), axis=1)
 
 np.save(filename_roc_curve_info+'/'+configfilename+'.npy', fpr_and_tprs)
-np.save(filename_roc_curve_info+'/'+configfilename+'_thresholds.npy', modelThresholds)
 
 refFprNN = np.expand_dims(refFprNN, axis=1)
 fpr_and_tprsNN = np.concatenate((refFprNN, tprsNN), axis=1)

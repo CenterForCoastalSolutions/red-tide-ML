@@ -32,8 +32,10 @@ def interpolate(values, vtx, wts, fill_value=np.nan):
 	ret[np.any(wts < 0, axis=1)] = fill_value
 	return ret
 
-startDate = pd.Timestamp(year=2018, month=7, day=17, hour=0)
-endDate = pd.Timestamp(year=2018, month=10, day=31, hour=0)
+#startDate = pd.Timestamp(year=2005, month=1, day=1, hour=0)
+#endDate = pd.Timestamp(year=2005, month=6, day=30, hour=0)
+startDate = pd.Timestamp(year=2005, month=7, day=1, hour=0)
+endDate = pd.Timestamp(year=2005, month=12, day=31, hour=0)
 
 dates = []
 
@@ -44,7 +46,7 @@ while(testDate <= endDate):
 
 np.save('map_images/dates.npy', dates)
 
-step_size = 0.015
+step_size = 0.0089
 florida_x = np.arange(-92, -75, step_size)
 florida_y = np.arange(20, 35, step_size)
 xx, yy = np.meshgrid(florida_x, florida_y)
@@ -57,8 +59,16 @@ florida_stats = np.zeros((florida_x.shape[0], florida_y.shape[0], 14, len(dates)
 florida_lats = np.tile(florida_y, len(florida_x))
 florida_lons = np.repeat(florida_x, len(florida_y))
 
+minLonIdx = find_nearest(florida_x, -85)
+maxLonIdx = find_nearest(florida_x, -80)
+
+minLatIdx = find_nearest(florida_y, 24)
+maxLatIdx = find_nearest(florida_y, 30)
+
 data_folder = '/run/media/rfick/UF10/MODIS-OC/MODIS-OC-data/requested_files'
 data_list = os.listdir(data_folder)
+
+days_of_imagery_to_average = 14
 
 reduced_file_list = []
 for i in range(len(data_list)):
@@ -71,10 +81,8 @@ for i in range(len(data_list)):
 	collectionDate = fh.time_coverage_start[0:10]
 	collectionTimeStamp = pd.Timestamp(int(collectionDate[0:4]), int(collectionDate[5:7]), int(collectionDate[8:10]), 0)
 
-	if(collectionTimeStamp >= (startDate - pd.Timedelta(days=1)) and collectionTimeStamp <= (endDate + pd.Timedelta(days=1))):
+	if(collectionTimeStamp >= (startDate - pd.Timedelta(days=days_of_imagery_to_average)) and collectionTimeStamp <= (endDate + pd.Timedelta(days=1))):
 		reduced_file_list.append(data_list[i])
-
-days_of_imagery_to_average = 14
 
 for i in range(len(reduced_file_list)):
 	print('Processing files: {}/{}'.format(i, len(reduced_file_list)))
@@ -201,12 +209,12 @@ bedrock_z = np.load('florida_z.npy')
 original_size = features.shape
 florida_lats = np.reshape(florida_lats, (features.shape[0], features.shape[1]), order='C')
 florida_lons = np.reshape(florida_lons, (features.shape[0], features.shape[1]), order='C')
-florida_lats = florida_lats[520:780, 300:580]
-florida_lons = florida_lons[520:780, 300:580]
+florida_lats = florida_lats[minLonIdx:maxLonIdx,minLatIdx:maxLatIdx]
+florida_lons = florida_lons[minLonIdx:maxLonIdx,minLatIdx:maxLatIdx]
 
 florida_lats = np.reshape(florida_lats, (florida_lats.shape[0]*florida_lats.shape[1]))
 florida_lons = np.reshape(florida_lons, (florida_lons.shape[0]*florida_lons.shape[1]))
-features = features[520:780, 300:580, :, :]
+features = features[minLonIdx:maxLonIdx, minLatIdx:maxLatIdx, :, :]
 original_size = features.shape
 
 features = np.reshape(features, (features.shape[0]*features.shape[1], 8, len(dates)))
@@ -225,6 +233,10 @@ for day in dates:
 	print('Processing days: {}/{}'.format(day_counter, len(dates)))
 
 	day_features = np.squeeze(features[:, :, day_counter])
+	#np.save('chlor_maps/day_features{}.npy'.format(day_counter), day_features)
+
+	day_features_mask = (day_features[:,0] == -1) | (day_features[:,1] == -1) | (day_features[:,2] == -1) | (day_features[:,3] == -1) | (day_features[:,4] == -1) | (day_features[:,5] == -1) | (day_features[:,6] == -1)
+	day_features_mask = np.reshape(day_features_mask, (original_size[0], original_size[1]), order='C')
 
 	features_to_use = ['par', 'Kd_490', 'chlor_a', 'Rrs_443', 'Rrs_469', 'Rrs_488', 'nflh']
 	day_features = convertFeaturesByDepth(day_features, features_to_use)
@@ -298,6 +310,7 @@ for day in dates:
 		red_tide = output[:, 1].detach().cpu().numpy()
 		red_tide = np.reshape(red_tide, (original_size[0], original_size[1]), order='C')
 
+		red_tide[day_features_mask] = -0.5
 		red_tide[land_mask] = -1
 
 		red_tide_output_sum = red_tide_output_sum + red_tide
@@ -312,6 +325,7 @@ for day in dates:
 			red_tide = output[:, 1].detach().cpu().numpy()
 			red_tide = np.reshape(red_tide, (original_size[0], original_size[1]), order='C')
 
+			red_tide[day_features_mask] = -0.5
 			red_tide[land_mask] = -1
 
 			red_tide_output_sum_original = red_tide_output_sum_original + red_tide
@@ -319,16 +333,20 @@ for day in dates:
 	#red_tide_output_original = red_tide_output_sum_original/len(randomseeds)
 	red_tide_output = red_tide_output_sum/len(randomseeds)
 
-	#np.save('map_images/red_tide_output_original{}.png'.format(day_counter), red_tide_output_original)
-	np.save('map_images/red_tide_output{}.npy'.format(day_counter), red_tide_output)
+	chlor_a_map = np.reshape(np.squeeze(day_features[:, 2]), (original_size[0], original_size[1]), order='C')
+	chlor_a_map[land_mask] = -1
+	chlor_a_map[day_features_mask] = -1
+
+	#np.save('chlor_maps/chlor_image{}.npy'.format(day_counter), chlor_a_map)
 
 	#plt.figure(dpi=500)
-	#plt.imshow(red_tide_output_original.T)
-	#plt.clim(-1, 1)
+	#plt.imshow(chlor_a_map.T)
 	#plt.colorbar()
-	#plt.title('Red Tide Prediction Original {}/{}/{}'.format(day.month, day.day, day.year))
+	#plt.title('Chlor-a Concentration {}/{}/{}'.format(day.month, day.day, day.year))
 	#plt.gca().invert_yaxis()
-	#plt.savefig('map_images/red_tide_original_combined{}.png'.format(str(day_counter).zfill(5)), bbox_inches='tight')
+	#plt.savefig('chlor_maps/chlor_image{}.png'.format(str(day_counter).zfill(5)), bbox_inches='tight')
+
+	np.save('map_images/red_tide_output{}.npy'.format(day_counter), red_tide_output)
 
 	plt.figure(dpi=500)
 	plt.imshow(red_tide_output.T)
@@ -337,5 +355,7 @@ for day in dates:
 	plt.title('Red Tide Prediction {}/{}/{}'.format(day.month, day.day, day.year))
 	plt.gca().invert_yaxis()
 	plt.savefig('map_images/red_tide_image{}.png'.format(str(day_counter).zfill(5)), bbox_inches='tight')
+
+	plt.close('all')
 
 	day_counter = day_counter + 1
